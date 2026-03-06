@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>University Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/base.css" />
+  <link rel="stylesheet" href="../assets/css/admin-dashboard.css" />
+</head>
+<body class="admin-dashboard-page app-shell">
+  <aside class="admin-sidebar">
+    <div class="admin-brand">
+      <h1>University Admin</h1>
+      <p>Hall operations console</p>
+    </div>
+
+    <a class="admin-nav-item active" href="dashboard.html">Dashboard</a>
+    <a class="admin-nav-item" href="../index.html">Student View</a>
+    <a class="admin-nav-item" href="adminn/superadmin  login.html">Super Admin Portal</a>
+
+    <div class="admin-user-box">
+      <strong id="adminName">Admin</strong>
+      <p id="adminRole">role</p>
+      <button id="logoutBtn" class="logout-btn" type="button">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <header class="admin-topbar">
+      <div>
+        <h2>Hall Dashboard</h2>
+        <p id="pageSubTitle">Manage hall statuses and availability <span id="clock"></span></p>
+      </div>
+      <div class="toolbar">
+        <input id="searchInput" type="text" placeholder="Search halls" />
+        <select id="buildingFilter">
+          <option value="all">All Buildings</option>
+        </select>
+        <select id="statusFilter">
+          <option value="all">All Status</option>
+          <option value="available">Available</option>
+          <option value="occupied">Occupied</option>
+          <option value="closed">Closed</option>
+          <option value="maint">Maintenance</option>
+        </select>
+        <button id="openAddHall" class="primary" type="button">+ Add Hall</button>
+      </div>
+    </header>
+
+    <section class="admin-content">
+      <div class="stats-grid">
+        <article class="stat">
+          <p>Total halls</p>
+          <strong id="statTotal">0</strong>
+        </article>
+        <article class="stat">
+          <p>Available</p>
+          <strong id="statAvailable">0</strong>
+        </article>
+        <article class="stat">
+          <p>Occupied</p>
+          <strong id="statOccupied">0</strong>
+        </article>
+        <article class="stat">
+          <p>Unavailable</p>
+          <strong id="statUnavailable">0</strong>
+        </article>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Hall Code</th>
+              <th>Building</th>
+              <th>Location</th>
+              <th>Faculty</th>
+              <th>Current</th>
+              <th>Set Status</th>
+              <th>Capacity</th>
+              <th>Note</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="addModal" class="modal-overlay">
+    <div class="modal">
+      <h3>Add Hall</h3>
+      <p>Create a new hall for your university account.</p>
+      <form id="addHallForm">
+        <div class="form-grid">
+          <div>
+            <label for="newCode">Hall Code</label>
+            <input id="newCode" type="text" placeholder="e.g. SCI 220" required />
+          </div>
+          <div>
+            <label for="newBuilding">Building</label>
+            <input id="newBuilding" type="text" placeholder="e.g. Science Hall" required />
+          </div>
+          <div>
+            <label for="newLocation">Hall Location</label>
+            <input id="newLocation" type="text" placeholder="e.g. Block B, First Floor" required />
+          </div>
+          <div>
+            <label for="newFaculty">Faculty Located</label>
+            <input id="newFaculty" type="text" placeholder="e.g. Faculty of Science" required />
+          </div>
+          <div>
+            <label for="newStatus">Initial Status</label>
+            <select id="newStatus">
+              <option value="available">Available</option>
+              <option value="occupied">Occupied</option>
+              <option value="closed">Closed</option>
+              <option value="maint">Maintenance</option>
+            </select>
+          </div>
+          <div>
+            <label for="newCapacity">Capacity</label>
+            <input id="newCapacity" type="number" min="1" placeholder="e.g. 80" required />
+          </div>
+          <div class="full">
+            <label for="newNote">Note</label>
+            <textarea id="newNote" placeholder="Optional status note"></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="closeAddModal" type="button">Cancel</button>
+          <button class="primary" type="submit">Save Hall</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="useHallModal" class="modal-overlay">
+    <div class="modal">
+      <h3>Mark Hall As In Use</h3>
+      <p id="useHallSummary">Upload the course and lecturer for this hall usage.</p>
+      <form id="useHallForm">
+        <div class="form-grid">
+          <div class="full">
+            <label for="useCourse">Course</label>
+            <input id="useCourse" type="text" placeholder="e.g. CSC 302 - Data Structures II" required />
+          </div>
+          <div class="full">
+            <label for="useLecturer">Lecturer</label>
+            <input id="useLecturer" type="text" placeholder="e.g. Dr. Jane Okon" required />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="closeUseModal" type="button">Cancel</button>
+          <button class="primary" type="submit">Mark Hall In Use</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/supabase-config.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
+  <script src="../assets/js/data-store.js"></script>
+  <script src="../assets/js/admin-dashboard.js"></script>
+</body>
+</html>
+
+

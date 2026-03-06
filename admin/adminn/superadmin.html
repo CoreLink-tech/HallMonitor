@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <link rel="stylesheet" href="../../assets/css/superadmin-dashboard.css" />
+</head>
+<body class="superadmin-dashboard-page app-shell">
+  <aside class="super-sidebar">
+    <div class="super-brand">
+      <h1>HallMonitor Platform</h1>
+      <p>Super admin workspace</p>
+    </div>
+
+    <button class="super-nav active" data-page="overview" type="button">Overview</button>
+    <button class="super-nav" data-page="universities" type="button">Universities <span class="count" id="universitiesCount">0</span></button>
+    <button class="super-nav" data-page="admins" type="button">Admins <span class="count" id="adminsCount">0</span></button>
+    <button class="super-nav" data-page="activity" type="button">Activity Log</button>
+
+    <div class="super-admin-box">
+      <strong id="superName">Super Admin</strong>
+      <p id="superRole">role</p>
+      <button id="logoutBtn" type="button">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="super-main">
+    <header class="super-topbar">
+      <div>
+        <h2 id="pageTitle">Platform Overview</h2>
+        <p id="pageSubTitle">Live platform data <span id="clock"></span></p>
+      </div>
+      <div class="super-topbar-tools">
+        <input id="globalSearch" type="text" placeholder="Search universities, admins, domains" />
+        <button id="openUniModal" type="button">+ Register University</button>
+        <button id="openAdminModal" type="button">+ Register Admin</button>
+      </div>
+    </header>
+
+    <section class="super-content">
+      <div class="metrics">
+        <article class="metric">
+          <p>Universities</p>
+          <strong id="metricUniversities">0</strong>
+        </article>
+        <article class="metric">
+          <p>Admin Accounts</p>
+          <strong id="metricAdmins">0</strong>
+        </article>
+        <article class="metric">
+          <p>Total Halls</p>
+          <strong id="metricHalls">0</strong>
+        </article>
+        <article class="metric">
+          <p>Pending Setup</p>
+          <strong id="metricPending">0</strong>
+        </article>
+      </div>
+
+      <div class="page-block active" data-page="overview">
+        <div class="panel" style="margin-bottom:12px;">
+          <div class="panel-head">
+            <h3>Recent Universities</h3>
+          </div>
+          <div class="super-table-wrap">
+            <table class="super-table">
+              <thead>
+                <tr>
+                  <th>University</th>
+                  <th>Plan</th>
+                  <th>Halls</th>
+                  <th>Admins</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="overviewUniBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recent Admins</h3>
+          </div>
+          <div class="super-table-wrap">
+            <table class="super-table">
+              <thead>
+                <tr>
+                  <th>Admin</th>
+                  <th>University</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="overviewAdminBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-block" data-page="universities">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Universities</h3>
+            <div class="right">
+              <select id="uniStatusFilter">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <select id="uniPlanFilter">
+                <option value="all">All Plan</option>
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="super-table-wrap">
+            <table class="super-table">
+              <thead>
+                <tr>
+                  <th>University</th>
+                  <th>Location</th>
+                  <th>Plan</th>
+                  <th>Halls</th>
+                  <th>Admins</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="uniBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-block" data-page="admins">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Admins</h3>
+            <div class="right">
+              <select id="adminStatusFilter">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <select id="adminUniFilter">
+                <option value="all">All Universities</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="super-table-wrap">
+            <table class="super-table">
+              <thead>
+                <tr>
+                  <th>Admin</th>
+                  <th>University</th>
+                  <th>Coordinator Profile</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Last Login</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-block" data-page="activity">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recent Activity</h3>
+          </div>
+          <div id="activityList" class="timeline" style="padding:12px;"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="uniModal" class="modal-overlay">
+    <div class="modal">
+      <h4>Register University</h4>
+      <p>Add a new institution to the platform.</p>
+      <form id="uniForm">
+        <div class="modal-grid">
+          <div>
+            <label for="newUniName">University Name</label>
+            <input id="newUniName" type="text" required />
+          </div>
+          <div>
+            <label for="newUniCode">Code</label>
+            <input id="newUniCode" type="text" maxlength="12" required />
+          </div>
+          <div>
+            <label for="newUniCountry">Country</label>
+            <input id="newUniCountry" type="text" required />
+          </div>
+          <div>
+            <label for="newUniCity">City</label>
+            <input id="newUniCity" type="text" />
+          </div>
+          <div>
+            <label for="newUniPlan">Plan</label>
+            <select id="newUniPlan">
+              <option value="free">Free</option>
+              <option value="pro">Pro</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+          <div>
+            <label for="newUniStatus">Status</label>
+            <select id="newUniStatus">
+              <option value="pending">Pending</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label for="newUniMaxHalls">Max Halls</label>
+            <input id="newUniMaxHalls" type="number" min="1" placeholder="50" />
+          </div>
+          <div>
+            <label for="newUniDomain">Domain</label>
+            <input id="newUniDomain" type="text" placeholder="example.edu" />
+          </div>
+          <div class="full">
+            <label for="newUniNotes">Notes</label>
+            <textarea id="newUniNotes"></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" data-close-modal="uniModal">Cancel</button>
+          <button type="submit" class="primary">Register University</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="adminModal" class="modal-overlay">
+    <div class="modal">
+      <h4>Register Admin</h4>
+      <p>Create an admin account linked to one university.</p>
+      <form id="adminForm">
+        <div class="modal-grid">
+          <div>
+            <label for="newAdminFirstName">First Name</label>
+            <input id="newAdminFirstName" type="text" required />
+          </div>
+          <div>
+            <label for="newAdminLastName">Last Name</label>
+            <input id="newAdminLastName" type="text" required />
+          </div>
+          <div class="full">
+            <label for="newAdminEmail">Email</label>
+            <input id="newAdminEmail" type="email" required />
+          </div>
+          <div>
+            <label for="newAdminUsername">Username</label>
+            <input id="newAdminUsername" type="text" required />
+          </div>
+          <div>
+            <label for="newAdminPassword">Password</label>
+            <input id="newAdminPassword" type="text" required />
+          </div>
+          <div>
+            <label for="newAdminUni">University</label>
+            <select id="newAdminUni"></select>
+          </div>
+          <div>
+            <label for="newAdminRole">Role</label>
+            <select id="newAdminRole">
+              <option value="admin">Admin</option>
+              <option value="operator">Operator</option>
+            </select>
+          </div>
+          <div>
+            <label for="newAdminStatus">Status</label>
+            <select id="newAdminStatus">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label for="newAdminFaculty">Faculty</label>
+            <input id="newAdminFaculty" type="text" placeholder="e.g. Faculty of Engineering" required />
+          </div>
+          <div>
+            <label for="newAdminDepartment">Department</label>
+            <input id="newAdminDepartment" type="text" placeholder="e.g. Mechanical Engineering" required />
+          </div>
+          <div>
+            <label for="newAdminLevel">Level</label>
+            <input id="newAdminLevel" type="text" placeholder="e.g. 300" required />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" data-close-modal="adminModal">Cancel</button>
+          <button type="submit" class="primary">Create Admin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/supabase-config.js"></script>
+  <script src="../../assets/js/supabase-client.js"></script>
+  <script src="../../assets/js/data-store.js"></script>
+  <script src="../../assets/js/superadmin-dashboard.js"></script>
+</body>
+</html>
+
+

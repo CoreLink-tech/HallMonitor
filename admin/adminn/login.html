@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>University Admin Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <link rel="stylesheet" href="../../assets/css/admin-login.css" />
+</head>
+<body class="admin-login-page app-shell">
+  <section class="auth-frame">
+    <aside class="auth-panel-left">
+      <h1>University Admin Access</h1>
+      <p>Sign in to update hall statuses, add classroom notes, and keep student hall visibility accurate in real time.</p>
+
+      <ul class="feature-list">
+        <li>Update hall status across buildings</li>
+        <li>Add notes that appear instantly on the student board</li>
+        <li>Manage capacity and classroom metadata</li>
+      </ul>
+
+      <div class="auth-links">
+        <a href="../../index.html">Student Dashboard</a>
+        <a href="superadmin  login.html">Super Admin Login</a>
+      </div>
+    </aside>
+
+    <div class="auth-panel-right">
+      <h2>Sign in</h2>
+      <p class="sub">Use your university admin credentials.</p>
+
+      <div id="loginError" class="alert hidden"></div>
+
+      <form id="adminLoginForm">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" placeholder="Enter username" />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="Enter password" />
+        </div>
+
+        <button class="login-btn" type="submit">Sign in to Dashboard</button>
+      </form>
+
+      <div class="helper">
+        Active admins in system: <strong id="activeAdminCount">0</strong><br />
+        Demo credentials: <code>admin / admin123</code><br />
+        <button id="autofillBtn" type="button" class="login-btn" style="margin-top:8px;">Autofill Demo Credentials</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/supabase-config.js"></script>
+  <script src="../../assets/js/supabase-client.js"></script>
+  <script src="../../assets/js/data-store.js"></script>
+  <script src="../../assets/js/admin-login.js"></script>
+</body>
+</html>
+
+

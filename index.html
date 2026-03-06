@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DELSU Hall Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/base.css" />
+  <link rel="stylesheet" href="assets/css/student.css" />
+</head>
+<body class="student-page app-shell">
+  <aside class="student-sidebar">
+    <div class="brand">
+      <h1>DELSU Hall Monitor</h1>
+      <p>Live hall availability</p>
+    </div>
+
+    <a class="side-link active" href="index.html">Student Dashboard</a>
+    <a id="backToAdminLink" class="side-link hidden" href="admin/dashboard.html">Go Back to Admin Dashboard</a>
+    <a id="backToSuperLink" class="side-link hidden" href="admin/adminn/superadmin.html">Go Back to Super Admin Dashboard</a>
+    <a class="side-link" href="admin/adminn/login.html">University Admin Login</a>
+    <a class="side-link" href="admin/adminn/superadmin  login.html">Super Admin Login</a>
+
+    <div class="side-group-label">Buildings</div>
+    <div id="buildingFilterList"></div>
+  </aside>
+
+  <main class="student-main">
+    <header class="student-topbar">
+      <div class="topbar-title">
+        <h2>Hall Monitor</h2>
+        <p>Real-time classroom status, refreshed from shared dashboard data. <span id="clock"></span></p>
+      </div>
+      <div class="topbar-tools">
+        <input id="searchInput" class="search-input" type="text" placeholder="Search halls, buildings, or notes" />
+        <select id="statusFilter" class="status-select">
+          <option value="all">All Status</option>
+          <option value="available">Available</option>
+          <option value="occupied">Occupied</option>
+          <option value="closed">Closed</option>
+          <option value="maint">Maintenance</option>
+        </select>
+      </div>
+    </header>
+
+    <section class="student-content">
+      <div class="metrics-row">
+        <article class="metric-card">
+          <p>Total halls</p>
+          <strong id="metricTotal">0</strong>
+        </article>
+        <article class="metric-card">
+          <p>Available now</p>
+          <strong id="metricAvailable">0</strong>
+        </article>
+        <article class="metric-card">
+          <p>Occupied now</p>
+          <strong id="metricOccupied">0</strong>
+        </article>
+      </div>
+
+      <div class="halls-grid" id="hallsGrid"></div>
+    </section>
+  </main>
+
+  <div id="hallDetailModal" class="hall-modal-overlay">
+    <div class="hall-modal">
+      <div class="hall-modal-head">
+        <h3 id="hallModalTitle">Hall Details</h3>
+        <button id="closeHallModal" type="button">x</button>
+      </div>
+      <p id="hallModalSub" class="hall-modal-sub">Detailed hall usage information.</p>
+      <div id="hallModalBody" class="hall-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/js/supabase-config.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/data-store.js"></script>
+  <script src="assets/js/student.js"></script>
+</body>
+</html>
+
+

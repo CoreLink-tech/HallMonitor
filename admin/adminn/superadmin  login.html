@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Admin Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../assets/css/base.css" />
+  <link rel="stylesheet" href="../../assets/css/superadmin-login.css" />
+</head>
+<body class="superadmin-login-page app-shell">
+  <section class="superauth-shell">
+    <aside class="superauth-left">
+      <span class="superauth-tag">Platform Control Tier</span>
+      <h1>Super Admin<br />Control Center</h1>
+      <p>Manage institutions, configure admin access, and monitor activity across all linked universities from one console.</p>
+
+      <div class="super-metrics">
+        <article class="super-metric">
+          <strong id="metricUni">0</strong>
+          <span>Universities</span>
+        </article>
+        <article class="super-metric">
+          <strong id="metricAdmin">0</strong>
+          <span>Admin Accounts</span>
+        </article>
+        <article class="super-metric">
+          <strong id="metricHall">0</strong>
+          <span>Halls Managed</span>
+        </article>
+        <article class="super-metric">
+          <strong>24/7</strong>
+          <span>Platform Visibility</span>
+        </article>
+      </div>
+
+      <div class="superauth-links">
+        <a href="../../index.html">Student Dashboard</a>
+        <a href="login.html">University Admin Login</a>
+      </div>
+    </aside>
+
+    <div class="superauth-right">
+      <h2>Super Admin Sign in</h2>
+      <p>Restricted route for platform administrators only.</p>
+
+      <div id="superError" class="auth-error hidden"></div>
+
+      <form id="superLoginForm">
+        <div class="super-field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" placeholder="Enter super admin username" />
+        </div>
+
+        <div class="super-field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="Enter password" />
+        </div>
+
+        <button class="super-btn" type="submit">Access Platform Dashboard</button>
+      </form>
+
+      <div class="super-note">
+        Demo credentials: <code>superadmin / super123</code><br />
+        <button id="autofillSuper" type="button" class="super-btn" style="margin-top:8px;">Autofill Demo Credentials</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../assets/js/supabase-config.js"></script>
+  <script src="../../assets/js/supabase-client.js"></script>
+  <script src="../../assets/js/data-store.js"></script>
+  <script src="../../assets/js/superadmin-login.js"></script>
+</body>
+</html>
+
+
