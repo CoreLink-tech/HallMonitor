@@ -3,6 +3,7 @@
   const ADMIN_SESSION_KEY = "hallmonitor_admin_session_v1";
   const SUPER_SESSION_KEY = "hallmonitor_superadmin_session_v1";
   const DB_VERSION = 4;
+  const ACCESS_SEED_REVISION = 1;
   const REMOTE_WRITE_DEBOUNCE_MS = 320;
   const PRIMARY_SUPERADMIN = Object.freeze({
     id: 1,
@@ -46,7 +47,8 @@
   const defaultState = () => ({
     meta: {
       seededAt: toDate(),
-      version: DB_VERSION
+      version: DB_VERSION,
+      accessSeedRevision: ACCESS_SEED_REVISION
     },
     universities: [
       {
@@ -323,24 +325,43 @@
     return changed;
   };
 
-  const migrateAccounts = (state) => {
+  const migrateAccounts = (state, previousVersion) => {
     let changed = false;
-    const currentVersion = Number(state.meta && state.meta.version ? state.meta.version : 0);
+    const legacyVersion = Number.isFinite(previousVersion) ? previousVersion : 0;
+    const accessSeedRevision = Number(state.meta && state.meta.accessSeedRevision ? state.meta.accessSeedRevision : 0);
+    const expectedSuperAdmins = [clone(PRIMARY_SUPERADMIN)];
+    const shouldResetSeededAccounts =
+      legacyVersion < 4 || accessSeedRevision < ACCESS_SEED_REVISION;
 
-    if (currentVersion < 4) {
+    if (shouldResetSeededAccounts) {
       if (state.admins.length) {
         state.admins = [];
         changed = true;
       }
 
-      const nextSuperAdmins = [clone(PRIMARY_SUPERADMIN)];
-      if (JSON.stringify(state.superAdmins) !== JSON.stringify(nextSuperAdmins)) {
-        state.superAdmins = nextSuperAdmins;
+      if (JSON.stringify(state.superAdmins) !== JSON.stringify(expectedSuperAdmins)) {
+        state.superAdmins = expectedSuperAdmins;
+        changed = true;
+      }
+
+      const nextActivity = (state.activity || []).filter((entry) => !inferLegacyDemoActor(entry));
+      if (nextActivity.length !== (state.activity || []).length) {
+        state.activity = nextActivity;
         changed = true;
       }
     }
 
+    if (state.meta.accessSeedRevision !== ACCESS_SEED_REVISION) {
+      state.meta.accessSeedRevision = ACCESS_SEED_REVISION;
+      changed = true;
+    }
+
     return changed;
+  };
+
+  const inferLegacyDemoActor = (entry) => {
+    const actor = String(entry && entry.actor ? entry.actor : "").toLowerCase();
+    return actor === "admin" || actor === "halldesk" || actor === "superadmin";
   };
 
   const normalizeHall = (state, hall) => {
@@ -421,9 +442,10 @@
 
   const normalizeState = (state) => {
     let changed = false;
+    const previousVersion = Number(state.meta && state.meta.version ? state.meta.version : 0);
 
     if (!state.meta || typeof state.meta !== "object") {
-      state.meta = { seededAt: toDate(), version: DB_VERSION };
+      state.meta = { seededAt: toDate(), version: DB_VERSION, accessSeedRevision: ACCESS_SEED_REVISION };
       changed = true;
     }
 
@@ -462,7 +484,7 @@
       changed = true;
     }
 
-    changed = migrateAccounts(state) || changed;
+    changed = migrateAccounts(state, previousVersion) || changed;
 
     state.admins.forEach((admin) => {
       changed = normalizeAdmin(admin) || changed;
