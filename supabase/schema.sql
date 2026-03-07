@@ -30,5 +30,5 @@ with check (true);
 
 -- Optional: seed empty row (the app will also auto-create this row on first write).
 insert into public.hallmonitor_state (id, payload)
-values ('global', '{"meta":{"seededAt":"2026-01-01T00:00:00.000Z","version":3},"universities":[],"admins":[],"superAdmins":[],"halls":[],"activity":[]}'::jsonb)
+values ('global', '{"meta":{"seededAt":"2026-01-01T00:00:00.000Z","version":4},"universities":[],"admins":[],"superAdmins":[{"id":1,"username":"ashedavid2005@gmail.com","password":"p1a2s3@code","displayName":"Primary Super Admin"}],"halls":[],"activity":[]}'::jsonb)
 on conflict (id) do nothing;

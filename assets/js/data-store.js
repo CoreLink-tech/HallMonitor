@@ -2,8 +2,14 @@
   const DB_KEY = "hallmonitor_db_v2";
   const ADMIN_SESSION_KEY = "hallmonitor_admin_session_v1";
   const SUPER_SESSION_KEY = "hallmonitor_superadmin_session_v1";
-  const DB_VERSION = 3;
+  const DB_VERSION = 4;
   const REMOTE_WRITE_DEBOUNCE_MS = 320;
+  const PRIMARY_SUPERADMIN = Object.freeze({
+    id: 1,
+    username: "ashedavid2005@gmail.com",
+    password: "p1a2s3@code",
+    displayName: "Primary Super Admin"
+  });
 
   const FACULTY_BY_BUILDING = {
     "Business School": "Faculty of Management Sciences",
@@ -70,46 +76,8 @@
         registered: "2026-02-02"
       }
     ],
-    admins: [
-      {
-        id: 1,
-        firstName: "Campus",
-        lastName: "Admin",
-        email: "admin@delsu.edu.ng",
-        username: "admin",
-        password: "admin123",
-        uniId: 1,
-        role: "admin",
-        status: "active",
-        faculty: "Faculty of Management Sciences",
-        department: "Accounting",
-        level: "300",
-        lastLogin: null
-      },
-      {
-        id: 2,
-        firstName: "Hall",
-        lastName: "Desk",
-        email: "halldesk@delsu.edu.ng",
-        username: "halldesk",
-        password: "hall2024",
-        uniId: 1,
-        role: "operator",
-        status: "active",
-        faculty: "Faculty of Engineering",
-        department: "Mechanical Engineering",
-        level: "200",
-        lastLogin: null
-      }
-    ],
-    superAdmins: [
-      {
-        id: 1,
-        username: "superadmin",
-        password: "super123",
-        displayName: "Platform Root"
-      }
-    ],
+    admins: [],
+    superAdmins: [clone(PRIMARY_SUPERADMIN)],
     halls: [
       {
         id: 1,
@@ -268,6 +236,8 @@
         id: 1,
         timestamp: toDate(),
         actor: "system",
+        actorRole: "system",
+        category: "system",
         message: "Demo data initialized"
       }
     ]
@@ -353,6 +323,26 @@
     return changed;
   };
 
+  const migrateAccounts = (state) => {
+    let changed = false;
+    const currentVersion = Number(state.meta && state.meta.version ? state.meta.version : 0);
+
+    if (currentVersion < 4) {
+      if (state.admins.length) {
+        state.admins = [];
+        changed = true;
+      }
+
+      const nextSuperAdmins = [clone(PRIMARY_SUPERADMIN)];
+      if (JSON.stringify(state.superAdmins) !== JSON.stringify(nextSuperAdmins)) {
+        state.superAdmins = nextSuperAdmins;
+        changed = true;
+      }
+    }
+
+    return changed;
+  };
+
   const normalizeHall = (state, hall) => {
     let changed = false;
 
@@ -412,6 +402,18 @@
         hall.usage.coordinatorId = match ? match.id : null;
         changed = true;
       }
+
+      if (hall.usage.coordinatorUsername && hall.usage.coordinatorUsername !== "system") {
+        const match = state.admins.find(
+          (admin) => admin.username.toLowerCase() === String(hall.usage.coordinatorUsername).toLowerCase()
+        );
+        if (!match) {
+          hall.usage.coordinator = "system";
+          hall.usage.coordinatorUsername = "system";
+          hall.usage.coordinatorId = null;
+          changed = true;
+        }
+      }
     }
 
     return changed;
@@ -460,6 +462,8 @@
       changed = true;
     }
 
+    changed = migrateAccounts(state) || changed;
+
     state.admins.forEach((admin) => {
       changed = normalizeAdmin(admin) || changed;
     });
@@ -481,7 +485,7 @@
 
     const changed = normalizeState(existing);
     if (changed) {
-      writeState(existing, { skipRemote: true });
+      writeState(existing);
     }
     return existing;
   };
@@ -505,8 +509,8 @@
 
     if (data && data.payload && typeof data.payload === "object") {
       const remoteState = data.payload;
-      normalizeState(remoteState);
-      writeState(remoteState, { skipRemote: true });
+      const changed = normalizeState(remoteState);
+      writeState(remoteState, { skipRemote: !changed });
       return;
     }
 
@@ -537,7 +541,8 @@
     return result;
   };
 
-  const pushActivity = (message, actor) => {
+  const pushActivity = (message, actor, metadata) => {
+    const meta = metadata && typeof metadata === "object" ? metadata : {};
     withState((state) => {
       const nextId = state.activity.length
         ? Math.max(...state.activity.map((entry) => entry.id)) + 1
@@ -546,6 +551,12 @@
         id: nextId,
         timestamp: toDate(),
         actor: actor || "system",
+        actorRole: meta.actorRole || null,
+        category: meta.category || null,
+        uniId: Number.isFinite(meta.uniId) ? meta.uniId : null,
+        adminId: Number.isFinite(meta.adminId) ? meta.adminId : null,
+        superId: Number.isFinite(meta.superId) ? meta.superId : null,
+        hallId: Number.isFinite(meta.hallId) ? meta.hallId : null,
         message
       });
       state.activity = state.activity.slice(0, 120);
@@ -558,7 +569,16 @@
       return null;
     }
     try {
-      return JSON.parse(raw);
+      const session = JSON.parse(raw);
+      const state = ensureState();
+      const admin = state.admins.find(
+        (item) => item.id === session.adminId && item.username === session.username && item.status === "active"
+      );
+      if (!admin) {
+        clearAdminSession();
+        return null;
+      }
+      return session;
     } catch (error) {
       return null;
     }
@@ -578,7 +598,16 @@
       return null;
     }
     try {
-      return JSON.parse(raw);
+      const session = JSON.parse(raw);
+      const state = ensureState();
+      const superAdmin = state.superAdmins.find(
+        (item) => item.id === session.superId && item.username === session.username
+      );
+      if (!superAdmin) {
+        clearSuperSession();
+        return null;
+      }
+      return session;
     } catch (error) {
       return null;
     }
@@ -627,7 +656,12 @@
       loggedInAt: toDate()
     };
     setAdminSession(session);
-    pushActivity(`Admin ${admin.username} signed in`, admin.username);
+    pushActivity(`Admin ${admin.username} signed in`, admin.username, {
+      actorRole: "admin",
+      category: "auth",
+      uniId: admin.uniId,
+      adminId: admin.id
+    });
 
     return { ok: true, session, admin: clone(admin) };
   };
@@ -652,7 +686,11 @@
     };
 
     setSuperSession(session);
-    pushActivity(`Super admin ${superAdmin.username} signed in`, superAdmin.username);
+    pushActivity(`Super admin ${superAdmin.username} signed in`, superAdmin.username, {
+      actorRole: "superadmin",
+      category: "auth",
+      superId: superAdmin.id
+    });
 
     return { ok: true, session, superAdmin: clone(superAdmin) };
   };
@@ -660,7 +698,12 @@
   const logoutAdmin = () => {
     const session = getAdminSession();
     if (session) {
-      pushActivity(`Admin ${session.username} signed out`, session.username);
+      pushActivity(`Admin ${session.username} signed out`, session.username, {
+        actorRole: "admin",
+        category: "auth",
+        uniId: session.uniId,
+        adminId: session.adminId
+      });
     }
     clearAdminSession();
   };
@@ -668,7 +711,11 @@
   const logoutSuperAdmin = () => {
     const session = getSuperSession();
     if (session) {
-      pushActivity(`Super admin ${session.username} signed out`, session.username);
+      pushActivity(`Super admin ${session.username} signed out`, session.username, {
+        actorRole: "superadmin",
+        category: "auth",
+        superId: session.superId
+      });
     }
     clearSuperSession();
   };

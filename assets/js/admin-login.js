@@ -48,10 +48,4 @@
     setError("");
     window.location.replace("../dashboard.html");
   });
-
-  document.getElementById("autofillBtn").addEventListener("click", () => {
-    userInput.value = "admin";
-    passInput.value = "admin123";
-    setError("");
-  });
 })();

@@ -47,6 +47,8 @@
     useHallModal: document.getElementById("useHallModal"),
     useHallForm: document.getElementById("useHallForm"),
     useHallSummary: document.getElementById("useHallSummary"),
+    activityMeta: document.getElementById("activityMeta"),
+    activityList: document.getElementById("adminActivityList"),
     toast: document.getElementById("toast")
   };
 
@@ -101,6 +103,21 @@
   const formatStatusBadge = (status) => {
     const label = statusOptions.find((item) => item.value === status)?.label || status;
     return `<span class="badge ${esc(status)}"><span class="badge-dot"></span>${esc(label)}</span>`;
+  };
+
+  const toTextDate = (value) => store.toShortDate(value);
+
+  const inferActivityRole = (entry) => {
+    if (entry.actorRole) {
+      return entry.actorRole;
+    }
+    if (entry.actor === "system") {
+      return "system";
+    }
+    if (String(entry.message || "").toLowerCase().startsWith("super admin ")) {
+      return "superadmin";
+    }
+    return "admin";
   };
 
   const renderBuildingFilter = (halls) => {
@@ -243,11 +260,65 @@
     });
   };
 
+  const getUniversityActivity = (state, university, halls) => {
+    const adminActors = new Set(
+      state.admins
+        .filter((admin) => admin.uniId === session.uniId)
+        .map((admin) => String(admin.username || "").toLowerCase())
+    );
+    const hallCodes = halls.map((hall) => String(hall.code || "").toLowerCase()).filter(Boolean);
+    const universityTokens = [university?.code, university?.name]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase());
+
+    return (state.activity || [])
+      .filter((entry) => {
+        if (entry.uniId === session.uniId) {
+          return true;
+        }
+
+        const actor = String(entry.actor || "").toLowerCase();
+        if (adminActors.has(actor)) {
+          return true;
+        }
+
+        const message = String(entry.message || "").toLowerCase();
+        if (universityTokens.some((token) => message.includes(token))) {
+          return true;
+        }
+
+        return hallCodes.some((code) => message.includes(code));
+      })
+      .slice(0, 12);
+  };
+
+  const renderActivity = (activity) => {
+    dom.activityMeta.textContent = activity.length
+      ? `${activity.length} recent entr${activity.length === 1 ? "y" : "ies"} for this university`
+      : "Recent admin actions for this university";
+
+    dom.activityList.innerHTML = activity.length
+      ? activity
+          .map((entry) => {
+            const role = inferActivityRole(entry);
+            const roleLabel =
+              role === "superadmin" ? "Super Admin" : role === "system" ? "System" : "Admin";
+            return `
+              <article class="activity-item">
+                <p>${esc(entry.message)}</p>
+                <small>${esc(toTextDate(entry.timestamp))} by ${esc(entry.actor || "system")} (${esc(roleLabel)})</small>
+              </article>`;
+          })
+          .join("")
+      : '<div class="activity-empty">No activity has been recorded for this university yet.</div>';
+  };
+
   const render = () => {
     const state = store.getState();
     const university = getUniversity(state);
     const halls = getUniversityHalls(state);
     const coordinator = getCoordinator(state);
+    const activity = getUniversityActivity(state, university, halls);
 
     dom.adminName.textContent = session.name;
     dom.adminRole.textContent = `${session.username} - ${coordinator.department} (${coordinator.level})`;
@@ -258,6 +329,7 @@
     renderBuildingFilter(halls);
     renderStats(halls);
     renderTable(halls);
+    renderActivity(activity);
   };
 
   const saveRow = (hallId, row) => {
@@ -338,7 +410,13 @@
       }
     });
 
-    store.pushActivity(`Hall ${code} updated by ${session.username}`, session.username);
+    store.pushActivity(`Hall ${code} updated by ${session.username}`, session.username, {
+      actorRole: "admin",
+      category: "hall",
+      uniId: session.uniId,
+      adminId: session.adminId,
+      hallId
+    });
     showToast(`Saved changes for ${code}.`);
     render();
   };
@@ -357,7 +435,13 @@
     store.withState((state) => {
       state.halls = state.halls.filter((item) => item.id !== hallId);
     });
-    store.pushActivity(`Hall ${hall.code} deleted by ${session.username}`, session.username);
+    store.pushActivity(`Hall ${hall.code} deleted by ${session.username}`, session.username, {
+      actorRole: "admin",
+      category: "hall",
+      uniId: session.uniId,
+      adminId: session.adminId,
+      hallId
+    });
     showToast(`${hall.code} removed.`);
     render();
   };
@@ -385,7 +469,13 @@
       target.note = "";
     });
 
-    store.pushActivity(`${session.username} released ${hall.code}`, session.username);
+    store.pushActivity(`${session.username} released ${hall.code}`, session.username, {
+      actorRole: "admin",
+      category: "hall",
+      uniId: session.uniId,
+      adminId: session.adminId,
+      hallId
+    });
     showToast(`${hall.code} is now available.`);
     render();
   };
@@ -481,7 +571,14 @@
 
     store.pushActivity(
       `${session.username} marked ${hallCode} as occupied for ${course}`,
-      session.username
+      session.username,
+      {
+        actorRole: "admin",
+        category: "hall",
+        uniId: session.uniId,
+        adminId: session.adminId,
+        hallId: activeUseHallId
+      }
     );
     showToast(`${hallCode} set to occupied.`);
     closeUseHallModal();
@@ -598,7 +695,12 @@
       });
     });
 
-    store.pushActivity(`Hall ${code} created by ${session.username}`, session.username);
+    store.pushActivity(`Hall ${code} created by ${session.username}`, session.username, {
+      actorRole: "admin",
+      category: "hall",
+      uniId: session.uniId,
+      adminId: session.adminId
+    });
     dom.addHallForm.reset();
     dom.addModal.classList.remove("show");
     showToast(`${code} added.`);

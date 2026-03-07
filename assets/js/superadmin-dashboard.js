@@ -14,7 +14,8 @@
     uniStatus: "all",
     uniPlan: "all",
     adminStatus: "all",
-    adminUni: "all"
+    adminUni: "all",
+    activityActor: "all"
   };
 
   const esc = (value) =>
@@ -43,6 +44,7 @@
     uniBody: document.getElementById("uniBody"),
     adminBody: document.getElementById("adminBody"),
     activityList: document.getElementById("activityList"),
+    activityActorFilter: document.getElementById("activityActorFilter"),
     universitiesCount: document.getElementById("universitiesCount"),
     adminsCount: document.getElementById("adminsCount"),
     superName: document.getElementById("superName"),
@@ -89,6 +91,19 @@
   const planLabel = (plan) => plan.charAt(0).toUpperCase() + plan.slice(1);
 
   const toTextDate = (value) => store.toShortDate(value);
+
+  const inferActivityRole = (entry) => {
+    if (entry.actorRole) {
+      return entry.actorRole;
+    }
+    if (entry.actor === "system") {
+      return "system";
+    }
+    if (String(entry.message || "").toLowerCase().startsWith("super admin ")) {
+      return "superadmin";
+    }
+    return "admin";
+  };
 
   const countsByUniversity = (state) => {
     const hallCount = new Map();
@@ -277,17 +292,29 @@
   };
 
   const renderActivity = (state) => {
-    const list = state.activity || [];
+    const list = (state.activity || []).filter((entry) => {
+      const role = inferActivityRole(entry);
+      return ui.activityActor === "all" || role === ui.activityActor;
+    });
+
     dom.activityList.innerHTML = list.length
       ? list
           .slice(0, 30)
-          .map(
-            (item) => `
+          .map((item) => {
+            const role = inferActivityRole(item);
+            const roleLabel =
+              role === "superadmin" ? "Super Admin" : role === "system" ? "System" : "Admin";
+            const category = item.category ? item.category : "activity";
+            return `
               <article class="timeline-item">
                 <p>${esc(item.message)}</p>
                 <small>${esc(toTextDate(item.timestamp))} by ${esc(item.actor || "system")}</small>
-              </article>`
-          )
+                <div class="activity-meta">
+                  <span class="activity-tag">${esc(roleLabel)}</span>
+                  <span class="activity-tag">${esc(category)}</span>
+                </div>
+              </article>`;
+          })
           .join("")
       : '<div class="empty">No activity yet.</div>';
   };
@@ -351,10 +378,12 @@
       return;
     }
 
+    let nextUniversityId = null;
     store.withState((state) => {
       const nextId = state.universities.length
         ? Math.max(...state.universities.map((uni) => uni.id)) + 1
         : 1;
+      nextUniversityId = nextId;
 
       state.universities.push({
         id: nextId,
@@ -371,7 +400,12 @@
       });
     });
 
-    store.pushActivity(`University ${code} registered by ${session.username}`, session.username);
+    store.pushActivity(`University ${code} registered by ${session.username}`, session.username, {
+      actorRole: "superadmin",
+      category: "university",
+      uniId: nextUniversityId,
+      superId: session.superId
+    });
     dom.uniForm.reset();
     closeModal(dom.uniModal);
     showToast(`${code} registered.`);
@@ -424,7 +458,12 @@
       });
     });
 
-    store.pushActivity(`Admin ${username} created by ${session.username}`, session.username);
+    store.pushActivity(`Admin ${username} created by ${session.username}`, session.username, {
+      actorRole: "superadmin",
+      category: "admin",
+      uniId,
+      superId: session.superId
+    });
     dom.adminForm.reset();
     closeModal(dom.adminModal);
     showToast(`Admin ${username} created.`);
@@ -486,6 +525,11 @@
     render();
   });
 
+  dom.activityActorFilter.addEventListener("change", (event) => {
+    ui.activityActor = event.target.value;
+    render();
+  });
+
   document.getElementById("openUniModal").addEventListener("click", () => {
     openModal(dom.uniModal);
   });
@@ -523,6 +567,8 @@
     const uniId = Number(button.dataset.id);
 
     if (button.dataset.action === "toggle-uni") {
+      const currentState = store.getState();
+      const currentUniversity = currentState.universities.find((item) => item.id === uniId);
       store.withState((state) => {
         const uni = state.universities.find((item) => item.id === uniId);
         if (!uni) {
@@ -530,7 +576,16 @@
         }
         uni.status = uni.status === "active" ? "inactive" : "active";
       });
-      store.pushActivity(`University ${uniId} status changed by ${session.username}`, session.username);
+      store.pushActivity(
+        `University ${currentUniversity ? currentUniversity.code : uniId} status changed by ${session.username}`,
+        session.username,
+        {
+          actorRole: "superadmin",
+          category: "university",
+          uniId,
+          superId: session.superId
+        }
+      );
       showToast("University status updated.");
       render();
       return;
@@ -541,13 +596,24 @@
         return;
       }
 
+      const currentState = store.getState();
+      const currentUniversity = currentState.universities.find((item) => item.id === uniId);
       store.withState((state) => {
         state.universities = state.universities.filter((item) => item.id !== uniId);
         state.admins = state.admins.filter((item) => item.uniId !== uniId);
         state.halls = state.halls.filter((item) => item.universityId !== uniId);
       });
 
-      store.pushActivity(`University ${uniId} deleted by ${session.username}`, session.username);
+      store.pushActivity(
+        `University ${currentUniversity ? currentUniversity.code : uniId} deleted by ${session.username}`,
+        session.username,
+        {
+          actorRole: "superadmin",
+          category: "university",
+          uniId,
+          superId: session.superId
+        }
+      );
       showToast("University removed.");
       render();
     }
@@ -562,6 +628,8 @@
     const adminId = Number(button.dataset.id);
 
     if (button.dataset.action === "toggle-admin") {
+      const currentState = store.getState();
+      const currentAdmin = currentState.admins.find((item) => item.id === adminId);
       store.withState((state) => {
         const admin = state.admins.find((item) => item.id === adminId);
         if (!admin) {
@@ -570,7 +638,17 @@
         admin.status = admin.status === "active" ? "inactive" : "active";
       });
 
-      store.pushActivity(`Admin ${adminId} status changed by ${session.username}`, session.username);
+      store.pushActivity(
+        `Admin ${currentAdmin ? currentAdmin.username : adminId} status changed by ${session.username}`,
+        session.username,
+        {
+          actorRole: "superadmin",
+          category: "admin",
+          uniId: currentAdmin ? currentAdmin.uniId : null,
+          adminId,
+          superId: session.superId
+        }
+      );
       showToast("Admin status updated.");
       render();
       return;
@@ -581,11 +659,23 @@
         return;
       }
 
+      const currentState = store.getState();
+      const currentAdmin = currentState.admins.find((item) => item.id === adminId);
       store.withState((state) => {
         state.admins = state.admins.filter((item) => item.id !== adminId);
       });
 
-      store.pushActivity(`Admin ${adminId} removed by ${session.username}`, session.username);
+      store.pushActivity(
+        `Admin ${currentAdmin ? currentAdmin.username : adminId} removed by ${session.username}`,
+        session.username,
+        {
+          actorRole: "superadmin",
+          category: "admin",
+          uniId: currentAdmin ? currentAdmin.uniId : null,
+          adminId,
+          superId: session.superId
+        }
+      );
       showToast("Admin removed.");
       render();
     }

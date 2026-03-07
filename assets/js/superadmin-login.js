@@ -46,10 +46,4 @@
     showError("");
     window.location.replace("superadmin.html");
   });
-
-  document.getElementById("autofillSuper").addEventListener("click", () => {
-    document.getElementById("username").value = "superadmin";
-    document.getElementById("password").value = "super123";
-    showError("");
-  });
 })();

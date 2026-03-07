@@ -171,6 +171,62 @@ body.admin-dashboard-page {
   border-radius: 12px;
 }
 
+.activity-panel {
+  margin-top: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(10, 19, 31, 0.95);
+}
+
+.activity-head {
+  border-bottom: 1px solid var(--line-soft);
+  padding: 13px 14px;
+}
+
+.activity-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.activity-head p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.activity-list {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.activity-item {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 11px;
+  background: rgba(11, 20, 31, 0.93);
+}
+
+.activity-item p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.activity-item small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.activity-empty {
+  padding: 28px 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
