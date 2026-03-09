@@ -29,7 +29,7 @@
     event.preventDefault();
 
     const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value;
+    const password = document.getElementById("password").value.trim();
 
     if (!username || !password) {
       showError("Enter both username and password.");
@@ -39,7 +39,6 @@
     const result = store.loginSuperAdmin(username, password);
     if (!result.ok) {
       showError(result.reason || "Login failed.");
-      document.getElementById("password").value = "";
       return;
     }
 
