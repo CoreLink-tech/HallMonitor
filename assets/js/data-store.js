@@ -66,16 +66,7 @@
     admins: [],
     superAdmins: [clone(PRIMARY_SUPERADMIN)],
     halls: [],
-    activity: [
-      {
-        id: 1,
-        timestamp: toDate(),
-        actor: "system",
-        actorRole: "system",
-        category: "system",
-        message: "Platform state initialized"
-      }
-    ]
+    activity: []
   });
 
   const defaultAdminProfile = () => ({
@@ -269,7 +260,7 @@
         changed = true;
       }
 
-      const nextActivity = (state.activity || []).filter((entry) => !inferLegacyDemoActor(entry));
+      const nextActivity = (state.activity || []).filter((entry) => !inferLegacySeedActor(entry));
       if (nextActivity.length !== (state.activity || []).length) {
         state.activity = nextActivity;
         changed = true;
@@ -284,7 +275,7 @@
     return changed;
   };
 
-  const inferLegacyDemoActor = (entry) => {
+  const inferLegacySeedActor = (entry) => {
     const actor = String(entry && entry.actor ? entry.actor : "").toLowerCase();
     return actor === "admin" || actor === "halldesk" || actor === "superadmin";
   };

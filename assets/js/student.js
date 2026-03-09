@@ -44,7 +44,8 @@
     modalTitle: document.getElementById("hallModalTitle"),
     modalSub: document.getElementById("hallModalSub"),
     modalBody: document.getElementById("hallModalBody"),
-    closeModalBtn: document.getElementById("closeHallModal")
+    closeModalBtn: document.getElementById("closeHallModal"),
+    portalSubTitle: document.getElementById("portalSubTitle")
   };
 
   const syncDashboardLinks = () => {
@@ -70,9 +71,21 @@
     }
   };
 
+  const getScopedHalls = (db) => {
+    const adminSession = store.getAdminSession();
+    if (!adminSession) {
+      return db.halls || [];
+    }
+    return (db.halls || []).filter((hall) => hall.universityId === adminSession.uniId);
+  };
+
   const renderBuildings = (halls) => {
     const container = document.getElementById("buildingFilterList");
     const buildings = ["all", ...new Set(halls.map((hall) => hall.building).filter(Boolean))];
+
+    if (!buildings.includes(state.building)) {
+      state.building = "all";
+    }
 
     container.innerHTML = buildings
       .map((building) => {
@@ -149,10 +162,23 @@
 
   const render = () => {
     const db = store.getState();
-    const halls = db.halls || [];
+    const halls = getScopedHalls(db);
+    const adminSession = store.getAdminSession();
+    const university = adminSession
+      ? db.universities.find((item) => item.id === adminSession.uniId)
+      : null;
 
     syncDashboardLinks();
     renderBuildings(halls);
+    dom.portalSubTitle.innerHTML = university
+      ? `Live classroom status for ${esc(university.name)}. <span id="clock">${esc(
+          new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+          })
+        )}</span>`
+      : 'Real-time classroom status, refreshed from shared dashboard data. <span id="clock"></span>';
 
     const filtered = halls.filter((hall) => {
       const byBuilding = state.building === "all" || hall.building === state.building;

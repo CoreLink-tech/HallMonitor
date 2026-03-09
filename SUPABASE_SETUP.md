@@ -23,4 +23,4 @@ Open any app page. The app will:
 ## Notes
 - Current implementation syncs the full app state JSON in one row (`id = 'global'`).
 - Good for quick integration; later you can split into normalized tables.
-- Current SQL policies are open (demo mode). Tighten RLS before production.
+- Current SQL policies are open (temporary open mode). Tighten RLS before production.

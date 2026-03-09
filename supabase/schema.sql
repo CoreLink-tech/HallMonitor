@@ -7,7 +7,7 @@ create table if not exists public.hallmonitor_state (
 
 alter table public.hallmonitor_state enable row level security;
 
--- Public read/write for anon key (simple demo mode).
+-- Public read/write for anon key (temporary open mode).
 -- Replace with stricter policies before production.
 drop policy if exists hallmonitor_state_select on public.hallmonitor_state;
 create policy hallmonitor_state_select
