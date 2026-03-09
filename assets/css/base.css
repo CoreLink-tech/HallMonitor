@@ -144,6 +144,16 @@ button {
   background: rgba(255, 125, 125, 0.12);
 }
 
+.badge.overdue {
+  color: #ffb95e;
+  background: rgba(255, 185, 94, 0.14);
+}
+
+.badge.unconfirmed {
+  color: #ffd8f0;
+  background: rgba(255, 140, 196, 0.15);
+}
+
 .badge.closed {
   color: var(--warn);
   background: rgba(247, 201, 95, 0.14);

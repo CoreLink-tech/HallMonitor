@@ -41,6 +41,7 @@
     metricsPending: document.getElementById("metricPending"),
     overviewUniBody: document.getElementById("overviewUniBody"),
     overviewAdminBody: document.getElementById("overviewAdminBody"),
+    overviewAlertBody: document.getElementById("overviewAlertBody"),
     uniBody: document.getElementById("uniBody"),
     adminBody: document.getElementById("adminBody"),
     activityList: document.getElementById("activityList"),
@@ -85,7 +86,8 @@
 
   const roleBadge = (role) => {
     const cls = role === "admin" ? "maint" : "available";
-    return `<span class="badge ${cls}"><span class="badge-dot"></span>${esc(role)}</span>`;
+    const label = role === "operator" ? "coordinator" : role;
+    return `<span class="badge ${cls}"><span class="badge-dot"></span>${esc(label)}</span>`;
   };
 
   const planLabel = (plan) => plan.charAt(0).toUpperCase() + plan.slice(1);
@@ -165,6 +167,10 @@
     const recentAdmins = [...state.admins]
       .sort((a, b) => String(b.lastLogin || "").localeCompare(String(a.lastLogin || "")))
       .slice(0, 5);
+    const staleHalls = state.halls
+      .filter((hall) => hall.effectiveStatus === "overdue" || hall.effectiveStatus === "unconfirmed")
+      .sort((a, b) => String(a.sessionExpectedEndAt || "").localeCompare(String(b.sessionExpectedEndAt || "")))
+      .slice(0, 6);
 
     dom.overviewUniBody.innerHTML = recentUniversities.length
       ? recentUniversities
@@ -193,6 +199,24 @@
           })
           .join("")
       : '<tr><td colspan="4" class="empty">No admins yet.</td></tr>';
+
+    dom.overviewAlertBody.innerHTML = staleHalls.length
+      ? staleHalls
+          .map((hall) => {
+            const uni = state.universities.find((item) => item.id === hall.universityId);
+            return `
+            <tr>
+              <td>${esc(hall.code)}</td>
+              <td>${esc(uni ? uni.code : "N/A")}</td>
+              <td><span class="badge ${esc(hall.effectiveStatus)}"><span class="badge-dot"></span>${esc(
+                hall.effectiveStatus
+              )}</span></td>
+              <td>${esc(hall.usage?.coordinator || hall.usage?.coordinatorUsername || "system")}</td>
+              <td>${esc(toTextDate(hall.sessionExpectedEndAt))}</td>
+            </tr>`;
+          })
+          .join("")
+      : '<tr><td colspan="5" class="empty">No stale hall sessions right now.</td></tr>';
   };
 
   const matchesGlobalQuery = (values) => {

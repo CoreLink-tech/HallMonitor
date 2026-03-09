@@ -14,12 +14,21 @@
     query: ""
   };
 
-  const statusOptions = [
+  const rowStatusOptions = [
     { value: "available", label: "Available" },
     { value: "occupied", label: "Occupied" },
     { value: "closed", label: "Closed" },
     { value: "maint", label: "Maintenance" }
   ];
+
+  const statusLabel = {
+    available: "Available",
+    occupied: "Occupied",
+    overdue: "Overdue",
+    unconfirmed: "Needs Confirmation",
+    closed: "Closed",
+    maint: "Maintenance"
+  };
 
   const esc = (value) =>
     String(value || "")
@@ -40,7 +49,10 @@
     statsTotal: document.getElementById("statTotal"),
     statsAvailable: document.getElementById("statAvailable"),
     statsOccupied: document.getElementById("statOccupied"),
+    statsOverdue: document.getElementById("statOverdue"),
+    statsUnconfirmed: document.getElementById("statUnconfirmed"),
     statsUnavailable: document.getElementById("statUnavailable"),
+    sessionAlerts: document.getElementById("sessionAlerts"),
     tableBody: document.getElementById("tableBody"),
     addModal: document.getElementById("addModal"),
     addHallForm: document.getElementById("addHallForm"),
@@ -58,7 +70,7 @@
     dom.toast.textContent = message;
     dom.toast.classList.add("show");
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => dom.toast.classList.remove("show"), 2500);
+    showToast.timer = setTimeout(() => dom.toast.classList.remove("show"), 2600);
   };
 
   const updateClock = () => {
@@ -67,6 +79,56 @@
       minute: "2-digit",
       second: "2-digit"
     });
+  };
+
+  const toTextDate = (value) => store.toShortDate(value);
+
+  const toLocalDateParts = (iso) => {
+    const date = iso ? new Date(iso) : new Date();
+    const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    const isoText = adjusted.toISOString();
+    return {
+      date: isoText.slice(0, 10),
+      time: isoText.slice(11, 16)
+    };
+  };
+
+  const combineDateAndTime = (dateText, timeText) => {
+    if (!dateText || !timeText) {
+      return null;
+    }
+    const parsed = new Date(`${dateText}T${timeText}`);
+    return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+  };
+
+  const getDurationHours = (hall) => {
+    if (hall?.usage?.durationHours) {
+      return Math.max(1, Math.min(4, Number(hall.usage.durationHours)));
+    }
+    if (hall?.sessionStartedAt && hall?.sessionExpectedEndAt) {
+      const diff = new Date(hall.sessionExpectedEndAt).getTime() - new Date(hall.sessionStartedAt).getTime();
+      return Math.max(1, Math.min(4, Math.round(diff / 3600000)));
+    }
+    return 2;
+  };
+
+  const syncExpectedEndPreview = () => {
+    const startDate = document.getElementById("useStartDate").value;
+    const startTime = document.getElementById("useStartTime").value;
+    const durationHours = Number(document.getElementById("useDurationHours").value);
+    const startedAt = combineDateAndTime(startDate, startTime);
+
+    if (!startedAt) {
+      document.getElementById("useEndDate").value = "";
+      document.getElementById("useEndTime").value = "";
+      return null;
+    }
+
+    const expectedEndAt = store.addMinutes(startedAt, durationHours * 60);
+    const endParts = toLocalDateParts(expectedEndAt);
+    document.getElementById("useEndDate").value = endParts.date;
+    document.getElementById("useEndTime").value = endParts.time;
+    return { startedAt, expectedEndAt, durationHours };
   };
 
   const getUniversity = (state) => state.universities.find((uni) => uni.id === session.uniId);
@@ -88,6 +150,11 @@
 
   const getUniversityHalls = (state) => state.halls.filter((hall) => hall.universityId === session.uniId);
 
+  const isHallOwnedBySession = (hall) =>
+    hall.status === "occupied" &&
+    hall.usage &&
+    hall.usage.coordinatorUsername === session.username;
+
   const isHallLockedByOther = (hall) =>
     hall.status === "occupied" &&
     hall.usage &&
@@ -95,17 +162,42 @@
     hall.usage.coordinatorUsername !== "system" &&
     hall.usage.coordinatorUsername !== session.username;
 
-  const isHallOwnedBySession = (hall) =>
-    hall.status === "occupied" &&
-    hall.usage &&
-    hall.usage.coordinatorUsername === session.username;
+  const isStaleHall = (hall) => hall.sessionState === "overdue" || hall.sessionState === "unconfirmed";
+
+  const canExtendHall = (hall) => hall.status === "occupied" && hall.usage && isHallOwnedBySession(hall);
+
+  const canReleaseHall = (hall) =>
+    hall.status === "occupied" && hall.usage && (isHallOwnedBySession(hall) || hall.sessionState === "unconfirmed");
+
+  const canOverrideHall = (hall) => hall.status === "occupied" && hall.usage && isStaleHall(hall);
 
   const formatStatusBadge = (status) => {
-    const label = statusOptions.find((item) => item.value === status)?.label || status;
+    const label = statusLabel[status] || status;
     return `<span class="badge ${esc(status)}"><span class="badge-dot"></span>${esc(label)}</span>`;
   };
 
-  const toTextDate = (value) => store.toShortDate(value);
+  const formatSessionWindow = (hall) => {
+    if (!hall.usage || hall.status !== "occupied") {
+      return "No active usage session";
+    }
+
+    const startText = hall.sessionStartedAt ? toTextDate(hall.sessionStartedAt) : "Start not set";
+    const endText = hall.sessionExpectedEndAt ? toTextDate(hall.sessionExpectedEndAt) : "End not set";
+    return `${startText} to ${endText}`;
+  };
+
+  const sessionMessage = (hall) => {
+    if (hall.sessionState === "overdue") {
+      return `Session overdue by ${hall.sessionMinutesOverdue || 0} min. Confirm extension or release the hall.`;
+    }
+    if (hall.sessionState === "unconfirmed") {
+      return `Session was not closed on time. Another admin may need to release or take over this hall.`;
+    }
+    if (hall.sessionState === "active") {
+      return `Expected to end ${toTextDate(hall.sessionExpectedEndAt)}.`;
+    }
+    return "";
+  };
 
   const inferActivityRole = (entry) => {
     if (entry.actorRole) {
@@ -142,7 +234,7 @@
       hall.location,
       hall.faculty,
       hall.note,
-      hall.status,
+      hall.effectiveStatus,
       hall.usage && hall.usage.course,
       hall.usage && hall.usage.lecturer,
       hall.usage && hall.usage.department
@@ -155,11 +247,32 @@
 
   const renderStats = (halls) => {
     dom.statsTotal.textContent = halls.length;
-    dom.statsAvailable.textContent = halls.filter((hall) => hall.status === "available").length;
-    dom.statsOccupied.textContent = halls.filter((hall) => hall.status === "occupied").length;
+    dom.statsAvailable.textContent = halls.filter((hall) => hall.effectiveStatus === "available").length;
+    dom.statsOccupied.textContent = halls.filter((hall) => hall.effectiveStatus === "occupied").length;
+    dom.statsOverdue.textContent = halls.filter((hall) => hall.effectiveStatus === "overdue").length;
+    dom.statsUnconfirmed.textContent = halls.filter((hall) => hall.effectiveStatus === "unconfirmed").length;
     dom.statsUnavailable.textContent = halls.filter(
-      (hall) => hall.status === "closed" || hall.status === "maint"
+      (hall) => hall.effectiveStatus === "closed" || hall.effectiveStatus === "maint"
     ).length;
+  };
+
+  const renderSessionAlerts = (halls) => {
+    const staleHalls = halls
+      .filter((hall) => isStaleHall(hall))
+      .sort((a, b) => String(a.sessionExpectedEndAt || "").localeCompare(String(b.sessionExpectedEndAt || "")))
+      .slice(0, 4);
+
+    dom.sessionAlerts.innerHTML = staleHalls.length
+      ? staleHalls
+          .map((hall) => `
+            <article class="session-alert ${esc(hall.sessionState)}">
+              <strong>${esc(hall.code)} - ${esc(statusLabel[hall.effectiveStatus] || hall.effectiveStatus)}</strong>
+              <p>${esc(sessionMessage(hall))} Coordinator: ${esc(
+                hall.usage?.coordinator || hall.usage?.coordinatorUsername || "system"
+              )}</p>
+            </article>`)
+          .join("")
+      : "";
   };
 
   const renderTable = (halls) => {
@@ -167,24 +280,17 @@
 
     const filtered = halls.filter((hall) => {
       const byBuilding = filters.building === "all" || hall.building === filters.building;
-      const byStatus = filters.status === "all" || hall.status === filters.status;
+      const byStatus = filters.status === "all" || hall.effectiveStatus === filters.status;
       const byQuery = matchesQuery(hall, query);
       return byBuilding && byStatus && byQuery;
     });
 
     const ranked = [...filtered].sort((a, b) => {
-      const aOwned = isHallOwnedBySession(a) ? 0 : 1;
-      const bOwned = isHallOwnedBySession(b) ? 0 : 1;
-      if (aOwned !== bOwned) {
-        return aOwned - bOwned;
+      const aPriority = isHallOwnedBySession(a) ? 0 : isStaleHall(a) ? 1 : 2;
+      const bPriority = isHallOwnedBySession(b) ? 0 : isStaleHall(b) ? 1 : 2;
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
       }
-
-      if (aOwned === 0 && bOwned === 0) {
-        const aTime = new Date(a.usage?.updatedAt || 0).getTime();
-        const bTime = new Date(b.usage?.updatedAt || 0).getTime();
-        return bTime - aTime;
-      }
-
       return a.code.localeCompare(b.code);
     });
 
@@ -196,7 +302,7 @@
 
     dom.tableBody.innerHTML = ranked
       .map((hall) => {
-        const selectOptions = statusOptions
+        const selectOptions = rowStatusOptions
           .map((option) => {
             const selected = option.value === hall.status ? "selected" : "";
             return `<option value="${esc(option.value)}" ${selected}>${esc(option.label)}</option>`;
@@ -205,22 +311,32 @@
 
         const currentInfo =
           hall.status === "occupied" && hall.usage
-            ? `<div>${esc(hall.usage.course)}</div><small>${esc(hall.usage.lecturer)}</small>`
-            : `<div>${formatStatusBadge(hall.status)}</div>`;
+            ? `<div>${esc(hall.usage.course)}</div>
+               <small>${esc(hall.usage.lecturer)}</small>
+               <small>${esc(formatSessionWindow(hall))}</small>
+               <div class="session-note">${formatStatusBadge(hall.effectiveStatus)}</div>`
+            : `<div>${formatStatusBadge(hall.effectiveStatus)}</div>`;
 
         const lockedByOther = isHallLockedByOther(hall);
         const ownedBySession = isHallOwnedBySession(hall);
+        const useBtnDisabled = lockedByOther;
+        const saveBtnDisabled = lockedByOther;
+        const deleteBtnDisabled = lockedByOther;
         const statusSelectDisabled = hall.status === "occupied" ? "disabled" : "";
-        const useBtnDisabled = lockedByOther ? "disabled" : "";
-        const saveBtnDisabled = lockedByOther ? "disabled" : "";
-        const deleteBtnDisabled = lockedByOther ? "disabled" : "";
+        const extendButton = canExtendHall(hall)
+          ? `<button class="extend" data-action="extend" data-id="${hall.id}">Extend 30m</button>`
+          : "";
+        const doneButton = canReleaseHall(hall)
+          ? `<button class="done" data-action="done" data-id="${hall.id}">Mark Done</button>`
+          : "";
+        const overrideButton = canOverrideHall(hall)
+          ? `<button class="override" data-action="override" data-id="${hall.id}">Override Free</button>`
+          : "";
+        const sessionNote = hall.status === "occupied" ? `<div class="session-note">${esc(sessionMessage(hall))}</div>` : "";
         const lockNote = lockedByOther
           ? `<div class="lock-note">In use by ${esc(hall.usage.coordinator || hall.usage.coordinatorUsername)}</div>`
           : "";
-        const doneButton = ownedBySession
-          ? `<button class="done" data-action="done" data-id="${hall.id}">Done with Hall</button>`
-          : "";
-        const ownActiveBadge = ownedBySession ? `<div class="pin-note">Your active hall</div>` : "";
+        const ownActiveBadge = ownedBySession ? `<div class="pin-note">You control this active session</div>` : "";
         const rowClass = ownedBySession ? "pinned-row" : "";
 
         return `
@@ -231,7 +347,7 @@
             <td><input class="row-faculty" value="${esc(hall.faculty || "")}"/></td>
             <td>${currentInfo}</td>
             <td>
-              <select class="row-status">
+              <select class="row-status" ${statusSelectDisabled}>
                 ${selectOptions}
               </select>
             </td>
@@ -239,25 +355,20 @@
             <td><input class="row-note" value="${esc(hall.note || "")}"/></td>
             <td>
               <div class="row-actions">
-                <button class="use" data-action="use" data-id="${hall.id}" ${useBtnDisabled}>Use Hall</button>
+                <button class="use" data-action="use" data-id="${hall.id}" ${useBtnDisabled ? "disabled" : ""}>Use Hall</button>
+                ${extendButton}
                 ${doneButton}
-                <button class="save" data-action="save" data-id="${hall.id}" ${saveBtnDisabled}>Save</button>
-                <button class="delete" data-action="delete" data-id="${hall.id}" ${deleteBtnDisabled}>Delete</button>
+                ${overrideButton}
+                <button class="save" data-action="save" data-id="${hall.id}" ${saveBtnDisabled ? "disabled" : ""}>Save</button>
+                <button class="delete" data-action="delete" data-id="${hall.id}" ${deleteBtnDisabled ? "disabled" : ""}>Delete</button>
               </div>
               ${ownActiveBadge}
+              ${sessionNote}
               ${lockNote}
             </td>
           </tr>`;
       })
       .join("");
-
-    dom.tableBody.querySelectorAll(".row-status").forEach((select) => {
-      const row = select.closest("tr");
-      const hall = ranked.find((item) => item.id === Number(row.dataset.id));
-      if (hall && hall.status === "occupied") {
-        select.disabled = true;
-      }
-    });
   };
 
   const getUniversityActivity = (state, university, halls) => {
@@ -321,15 +432,37 @@
     const activity = getUniversityActivity(state, university, halls);
 
     dom.adminName.textContent = session.name;
-    dom.adminRole.textContent = `${session.username} - ${coordinator.department} (${coordinator.level})`;
+    dom.adminRole.textContent = `${session.username} - ${session.role === "operator" ? "Coordinator" : "Admin"} - ${coordinator.department} (${coordinator.level})`;
     dom.pageSubTitle.textContent = university
       ? `Managing ${university.name} - ${coordinator.faculty}`
       : "Manage hall statuses and availability";
 
     renderBuildingFilter(halls);
     renderStats(halls);
+    renderSessionAlerts(halls);
     renderTable(halls);
     renderActivity(activity);
+  };
+
+  const releaseHallUsage = (hallId, reason) => {
+    const currentState = store.getState();
+    const hall = currentState.halls.find((item) => item.id === hallId && item.universityId === session.uniId);
+    if (!hall) {
+      return false;
+    }
+
+    store.withState((state) => {
+      const target = state.halls.find((item) => item.id === hallId && item.universityId === session.uniId);
+      if (!target) {
+        return;
+      }
+      target.status = "available";
+      target.currentClass = null;
+      target.usage = null;
+      target.note = reason ? `Released: ${reason}` : "";
+    });
+
+    return hall;
   };
 
   const saveRow = (hallId, row) => {
@@ -361,12 +494,12 @@
     }
 
     if (isHallLockedByOther(currentHall)) {
-      alert("This hall is currently in use by another coordinator and cannot be edited.");
+      alert("This hall is currently controlled by another coordinator.");
       return;
     }
 
     if (currentHall.status === "occupied" && status !== "occupied") {
-      alert("Use the 'Done with Hall' button to release an occupied hall.");
+      alert("Use Mark Done or Override Free to release an active hall session.");
       return;
     }
 
@@ -390,6 +523,7 @@
         hall.currentClass = null;
         hall.usage = null;
       } else if (!hall.usage) {
+        const startedAt = new Date().toISOString();
         hall.usage = {
           course: note || "Course not set",
           lecturer: "Lecturer not set",
@@ -399,7 +533,11 @@
           coordinator: session.name,
           coordinatorUsername: session.username,
           coordinatorId: session.adminId,
-          updatedAt: new Date().toISOString()
+          updatedAt: startedAt,
+          startedAt,
+          expectedEndAt: store.addMinutes(startedAt, 120),
+          lastConfirmedAt: startedAt,
+          durationHours: 2
         };
         hall.currentClass = {
           code: hall.usage.course,
@@ -432,6 +570,11 @@
       return;
     }
 
+    if (isHallLockedByOther(hall)) {
+      alert("You cannot delete a hall while another coordinator controls it.");
+      return;
+    }
+
     store.withState((state) => {
       state.halls = state.halls.filter((item) => item.id !== hallId);
     });
@@ -453,22 +596,12 @@
       return;
     }
 
-    if (!isHallOwnedBySession(hall)) {
-      alert("Only the coordinator currently using this hall can mark it as done.");
+    if (!canReleaseHall(hall)) {
+      alert("Only the active coordinator can close this session unless it is already unconfirmed.");
       return;
     }
 
-    store.withState((state) => {
-      const target = state.halls.find((item) => item.id === hallId && item.universityId === session.uniId);
-      if (!target) {
-        return;
-      }
-      target.status = "available";
-      target.currentClass = null;
-      target.usage = null;
-      target.note = "";
-    });
-
+    releaseHallUsage(hallId, "");
     store.pushActivity(`${session.username} released ${hall.code}`, session.username, {
       actorRole: "admin",
       category: "hall",
@@ -477,6 +610,88 @@
       hallId
     });
     showToast(`${hall.code} is now available.`);
+    render();
+  };
+
+  const extendHall = (hallId) => {
+    const currentState = store.getState();
+    const hall = currentState.halls.find((item) => item.id === hallId && item.universityId === session.uniId);
+    if (!hall) {
+      return;
+    }
+
+    if (!canExtendHall(hall)) {
+      alert("Only the current coordinator can extend this hall session.");
+      return;
+    }
+
+    const currentDuration = getDurationHours(hall);
+    const remainingHours = 4 - currentDuration;
+    if (remainingHours <= 0) {
+      alert("A single course session cannot exceed 4 hours.");
+      return;
+    }
+
+    const extraHours = Number.parseInt(
+      window.prompt(`Extend this session by how many hours? (1-${remainingHours})`, "1"),
+      10
+    );
+    if (!extraHours || extraHours < 1 || extraHours > remainingHours) {
+      return;
+    }
+
+    store.withState((state) => {
+      const target = state.halls.find((item) => item.id === hallId && item.universityId === session.uniId);
+      if (!target || !target.usage) {
+        return;
+      }
+      const anchor = target.usage.expectedEndAt || target.usage.updatedAt || new Date().toISOString();
+      target.usage.expectedEndAt = store.addMinutes(anchor, extraHours * 60);
+      target.usage.durationHours = Math.min(4, currentDuration + extraHours);
+      target.usage.lastConfirmedAt = new Date().toISOString();
+      target.usage.updatedAt = new Date().toISOString();
+      if (target.currentClass) {
+        target.currentClass.time = `${toTextDate(target.usage.startedAt)} to ${toTextDate(target.usage.expectedEndAt)}`;
+      }
+    });
+
+    store.pushActivity(`Hall ${hall.code} session extended by ${session.username}`, session.username, {
+      actorRole: "admin",
+      category: "hall",
+      uniId: session.uniId,
+      adminId: session.adminId,
+      hallId
+    });
+    showToast(`${hall.code} extended by ${extraHours} hour${extraHours === 1 ? "" : "s"}.`);
+    render();
+  };
+
+  const overrideHall = (hallId) => {
+    const currentState = store.getState();
+    const hall = currentState.halls.find((item) => item.id === hallId && item.universityId === session.uniId);
+    if (!hall) {
+      return;
+    }
+
+    if (!canOverrideHall(hall)) {
+      alert("Only stale sessions can be overridden.");
+      return;
+    }
+
+    const reason = window.prompt("Why are you overriding this hall as free?", "Coordinator left without closing session");
+    if (reason === null) {
+      return;
+    }
+
+    releaseHallUsage(hallId, reason.trim());
+    store.pushActivity(`Hall ${hall.code} overridden as free by ${session.username}`, session.username, {
+      actorRole: "admin",
+      category: "hall",
+      uniId: session.uniId,
+      adminId: session.adminId,
+      hallId
+    });
+    showToast(`${hall.code} released with override.`);
     render();
   };
 
@@ -496,11 +711,15 @@
     activeUseHallId = hall.id;
 
     dom.useHallSummary.textContent =
-      `${hall.code} - ${hall.location} | Coordinator profile: ${coordinator.department}, ` +
-      `${coordinator.faculty}, Level ${coordinator.level}.`;
+      `${hall.code} - ${hall.location} | ${coordinator.department}, ${coordinator.faculty}, Level ${coordinator.level}.`;
 
     document.getElementById("useCourse").value = hall.usage?.course || "";
     document.getElementById("useLecturer").value = hall.usage?.lecturer || "";
+    const startParts = toLocalDateParts(hall.usage?.startedAt || new Date().toISOString());
+    document.getElementById("useStartDate").value = startParts.date;
+    document.getElementById("useStartTime").value = startParts.time;
+    document.getElementById("useDurationHours").value = String(getDurationHours(hall));
+    syncExpectedEndPreview();
     dom.useHallModal.classList.add("show");
   };
 
@@ -516,35 +735,44 @@
 
     const course = document.getElementById("useCourse").value.trim();
     const lecturer = document.getElementById("useLecturer").value.trim();
+    const schedule = syncExpectedEndPreview();
 
-    if (!course || !lecturer) {
-      alert("Course and lecturer are required.");
+    if (!course || !lecturer || !schedule) {
+      alert("Course, lecturer, session date, and start time are required.");
       return;
     }
 
+    const { startedAt, expectedEndAt, durationHours } = schedule;
+
     const currentState = store.getState();
     const coordinator = getCoordinator(currentState);
+    const hall = currentState.halls.find(
+      (item) => item.id === activeUseHallId && item.universityId === session.uniId
+    );
 
-    let hallCode = "Hall";
-    let blockedByOther = false;
+    if (!hall) {
+      return;
+    }
+
+    if (isHallLockedByOther(hall)) {
+      alert("Another coordinator is currently using this hall.");
+      render();
+      return;
+    }
+
+    const hallCode = hall.code;
+
     store.withState((state) => {
-      const hall = state.halls.find(
+      const target = state.halls.find(
         (item) => item.id === activeUseHallId && item.universityId === session.uniId
       );
-
-      if (!hall) {
+      if (!target) {
         return;
       }
 
-      if (isHallLockedByOther(hall)) {
-        blockedByOther = true;
-        return;
-      }
-
-      hallCode = hall.code;
-      hall.status = "occupied";
-      hall.note = `${course} - ${lecturer}`;
-      hall.usage = {
+      target.status = "occupied";
+      target.note = `${course} - ${lecturer}`;
+      target.usage = {
         course,
         lecturer,
         department: coordinator.department,
@@ -553,24 +781,22 @@
         coordinator: session.name,
         coordinatorUsername: session.username,
         coordinatorId: session.adminId,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        startedAt,
+        expectedEndAt,
+        lastConfirmedAt: new Date().toISOString(),
+        durationHours
       };
-      hall.currentClass = {
+      target.currentClass = {
         code: course,
         name: course,
         professor: lecturer,
-        time: "In progress"
+        time: `${toTextDate(startedAt)} to ${toTextDate(expectedEndAt)}`
       };
     });
 
-    if (blockedByOther) {
-      alert("Another coordinator is currently using this hall.");
-      render();
-      return;
-    }
-
     store.pushActivity(
-      `${session.username} marked ${hallCode} as occupied for ${course}`,
+      `${session.username} marked ${hallCode} as occupied for ${course} until ${toTextDate(expectedEndAt)}`,
       session.username,
       {
         actorRole: "admin",
@@ -599,13 +825,23 @@
       return;
     }
 
-    if (button.dataset.action === "save") {
-      saveRow(hallId, row);
+    if (button.dataset.action === "extend") {
+      extendHall(hallId);
       return;
     }
 
     if (button.dataset.action === "done") {
       doneWithHall(hallId);
+      return;
+    }
+
+    if (button.dataset.action === "override") {
+      overrideHall(hallId);
+      return;
+    }
+
+    if (button.dataset.action === "save") {
+      saveRow(hallId, row);
       return;
     }
 
@@ -638,6 +874,8 @@
   });
 
   document.getElementById("closeUseModal").addEventListener("click", closeUseHallModal);
+  document.getElementById("useStartTime").addEventListener("input", syncExpectedEndPreview);
+  document.getElementById("useDurationHours").addEventListener("change", syncExpectedEndPreview);
 
   dom.addModal.addEventListener("click", (event) => {
     if (event.target === dom.addModal) {
@@ -674,6 +912,11 @@
 
     if (!capacity || capacity < 1) {
       alert("Enter a valid hall capacity.");
+      return;
+    }
+
+    if (status === "occupied") {
+      alert("Create the hall first, then use the timed session flow to mark it in use.");
       return;
     }
 
@@ -721,5 +964,6 @@
 
   updateClock();
   setInterval(updateClock, 1000);
+  setInterval(render, 60000);
   render();
 })();

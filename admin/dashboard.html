@@ -43,6 +43,8 @@
           <option value="all">All Status</option>
           <option value="available">Available</option>
           <option value="occupied">Occupied</option>
+          <option value="overdue">Overdue</option>
+          <option value="unconfirmed">Needs Confirmation</option>
           <option value="closed">Closed</option>
           <option value="maint">Maintenance</option>
         </select>
@@ -65,10 +67,20 @@
           <strong id="statOccupied">0</strong>
         </article>
         <article class="stat">
+          <p>Overdue</p>
+          <strong id="statOverdue">0</strong>
+        </article>
+        <article class="stat">
+          <p>Needs Confirmation</p>
+          <strong id="statUnconfirmed">0</strong>
+        </article>
+        <article class="stat">
           <p>Unavailable</p>
           <strong id="statUnavailable">0</strong>
         </article>
       </div>
+
+      <section id="sessionAlerts" class="session-alerts"></section>
 
       <div class="table-wrap">
         <table>
@@ -162,6 +174,31 @@
           <div class="full">
             <label for="useLecturer">Lecturer</label>
             <input id="useLecturer" type="text" placeholder="e.g. Dr. Jane Okon" required />
+          </div>
+          <div>
+            <label for="useStartDate">Session Date</label>
+            <input id="useStartDate" type="text" readonly />
+          </div>
+          <div>
+            <label for="useStartTime">Start Time</label>
+            <input id="useStartTime" type="time" required />
+          </div>
+          <div>
+            <label for="useDurationHours">Course Duration</label>
+            <select id="useDurationHours">
+              <option value="1">1 Hour</option>
+              <option value="2">2 Hours</option>
+              <option value="3">3 Hours</option>
+              <option value="4">4 Hours</option>
+            </select>
+          </div>
+          <div>
+            <label for="useEndDate">Expected End Date</label>
+            <input id="useEndDate" type="text" readonly />
+          </div>
+          <div class="full">
+            <label for="useEndTime">Expected End Time</label>
+            <input id="useEndTime" type="text" readonly />
           </div>
         </div>
         <div class="modal-actions">

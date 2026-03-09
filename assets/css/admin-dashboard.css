@@ -227,6 +227,35 @@ body.admin-dashboard-page {
   font-size: 13px;
 }
 
+.session-alerts {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.session-alert {
+  border: 1px solid rgba(255, 185, 94, 0.32);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 185, 94, 0.08);
+}
+
+.session-alert.unconfirmed {
+  border-color: rgba(255, 140, 196, 0.34);
+  background: rgba(255, 140, 196, 0.08);
+}
+
+.session-alert strong {
+  display: block;
+  font-size: 13px;
+}
+
+.session-alert p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -289,6 +318,16 @@ td select {
   color: #d9ffe7;
 }
 
+.row-actions .extend {
+  border-color: rgba(94, 194, 255, 0.45);
+  color: #d8f1ff;
+}
+
+.row-actions .override {
+  border-color: rgba(255, 185, 94, 0.45);
+  color: #ffe8bf;
+}
+
 .row-actions .delete {
   border-color: rgba(255, 125, 125, 0.45);
   color: #ffd0d0;
@@ -302,6 +341,12 @@ td select {
 .lock-note {
   margin-top: 6px;
   color: var(--text-muted);
+  font-size: 11px;
+}
+
+.session-note {
+  margin-top: 6px;
+  color: #d7efff;
   font-size: 11px;
 }
 

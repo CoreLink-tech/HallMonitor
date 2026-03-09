@@ -11,6 +11,8 @@
   const statusLabel = {
     available: "Available",
     occupied: "Occupied",
+    overdue: "Overdue",
+    unconfirmed: "Needs Confirmation",
     closed: "Closed",
     maint: "Maintenance"
   };
@@ -34,6 +36,8 @@
       second: "2-digit"
     });
   };
+
+  const toTextDate = (value) => store.toShortDate(value);
 
   const dom = {
     modal: document.getElementById("hallDetailModal"),
@@ -68,10 +72,7 @@
 
   const renderBuildings = (halls) => {
     const container = document.getElementById("buildingFilterList");
-    const buildings = [
-      "all",
-      ...new Set(halls.map((hall) => hall.building).filter(Boolean))
-    ];
+    const buildings = ["all", ...new Set(halls.map((hall) => hall.building).filter(Boolean))];
 
     container.innerHTML = buildings
       .map((building) => {
@@ -89,13 +90,26 @@
     });
   };
 
+  const sessionSummary = (hall) => {
+    if (hall.sessionState === "overdue") {
+      return `Session overdue by ${hall.sessionMinutesOverdue || 0} minutes.`;
+    }
+    if (hall.sessionState === "unconfirmed") {
+      return "Usage needs admin confirmation before this hall can be trusted as free or occupied.";
+    }
+    if (hall.sessionExpectedEndAt) {
+      return `Expected to end ${toTextDate(hall.sessionExpectedEndAt)}.`;
+    }
+    return "No session timing available.";
+  };
+
   const cardClassMarkup = (hall) => {
     if (hall.status === "occupied" && hall.currentClass) {
       return `
         <p><strong>${esc(hall.currentClass.code)}</strong></p>
         <p>${esc(hall.currentClass.name)}</p>
         <p>${esc(hall.currentClass.professor)}</p>
-        <p>${esc(hall.currentClass.time)}</p>`;
+        <p>${esc(sessionSummary(hall))}</p>`;
     }
 
     if (hall.note) {
@@ -114,7 +128,7 @@
       hall.code,
       hall.building,
       hall.note,
-      hall.status,
+      hall.effectiveStatus,
       hall.currentClass && hall.currentClass.code,
       hall.currentClass && hall.currentClass.name,
       hall.currentClass && hall.currentClass.professor,
@@ -142,18 +156,21 @@
 
     const filtered = halls.filter((hall) => {
       const byBuilding = state.building === "all" || hall.building === state.building;
-      const byStatus = state.status === "all" || hall.status === state.status;
+      const byStatus = state.status === "all" || hall.effectiveStatus === state.status;
       const byQuery = matchesQuery(hall, state.query.toLowerCase());
       return byBuilding && byStatus && byQuery;
     });
 
-    const totalEl = document.getElementById("metricTotal");
-    const availableEl = document.getElementById("metricAvailable");
-    const occupiedEl = document.getElementById("metricOccupied");
-
-    totalEl.textContent = halls.length;
-    availableEl.textContent = halls.filter((hall) => hall.status === "available").length;
-    occupiedEl.textContent = halls.filter((hall) => hall.status === "occupied").length;
+    document.getElementById("metricTotal").textContent = halls.length;
+    document.getElementById("metricAvailable").textContent = halls.filter(
+      (hall) => hall.effectiveStatus === "available"
+    ).length;
+    document.getElementById("metricOccupied").textContent = halls.filter(
+      (hall) => hall.effectiveStatus === "occupied" || hall.effectiveStatus === "overdue"
+    ).length;
+    document.getElementById("metricAttention").textContent = halls.filter(
+      (hall) => hall.effectiveStatus === "overdue" || hall.effectiveStatus === "unconfirmed"
+    ).length;
 
     const grid = document.getElementById("hallsGrid");
     if (!filtered.length) {
@@ -174,7 +191,9 @@
                 <div class="hall-card-title">${esc(hall.code)}</div>
                 <div class="hall-card-sub">${esc(hall.building)}</div>
               </div>
-              <span class="badge ${esc(hall.status)}"><span class="badge-dot"></span>${esc(statusLabel[hall.status] || hall.status)}</span>
+              <span class="badge ${esc(hall.effectiveStatus)}"><span class="badge-dot"></span>${esc(
+                statusLabel[hall.effectiveStatus] || hall.effectiveStatus
+              )}</span>
             </div>
             <div class="hall-body-box">${cardClassMarkup(hall)}</div>
             <div class="hall-meta">
@@ -204,10 +223,16 @@
     const activeFaculty = usage.faculty || hall.faculty || "Not set";
     const activeLevel = usage.level || "Not set";
     const coordinator = usage.coordinator || "Not set";
-    const statusText = statusLabel[hall.status] || hall.status;
+    const statusText = statusLabel[hall.effectiveStatus] || hall.effectiveStatus;
     const usageTime = usage.updatedAt
       ? new Date(usage.updatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
       : "Not yet logged";
+    const sessionWindow =
+      hall.status === "occupied" && usage
+        ? `${hall.sessionStartedAt ? toTextDate(hall.sessionStartedAt) : "Start not set"} to ${
+            hall.sessionExpectedEndAt ? toTextDate(hall.sessionExpectedEndAt) : "End not set"
+          }`
+        : "No active session";
 
     dom.modalTitle.textContent = hall.code;
     dom.modalSub.textContent = `${hall.building} | Capacity ${hall.capacity}`;
@@ -245,6 +270,14 @@
         <strong>${esc(activeLecturer)}</strong>
       </article>
       <article class="hall-meta-card full">
+        <p>Session Window</p>
+        <strong>${esc(sessionWindow)}</strong>
+      </article>
+      <article class="hall-meta-card full">
+        <p>Attention</p>
+        <strong>${esc(sessionSummary(hall))}</strong>
+      </article>
+      <article class="hall-meta-card full">
         <p>Last Usage Update</p>
         <strong>${esc(usageTime)}</strong>
       </article>
@@ -277,6 +310,7 @@
 
   updateClock();
   setInterval(updateClock, 1000);
+  setInterval(render, 60000);
 
   document.getElementById("hallsGrid").addEventListener("click", (event) => {
     const card = event.target.closest(".hall-card[data-hall-id]");

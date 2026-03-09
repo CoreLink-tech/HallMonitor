@@ -5,6 +5,8 @@
   const DB_VERSION = 4;
   const ACCESS_SEED_REVISION = 1;
   const REMOTE_WRITE_DEBOUNCE_MS = 320;
+  const DEFAULT_SESSION_DURATION_MINUTES = 120;
+  const SESSION_OVERDUE_GRACE_MINUTES = 20;
   const PRIMARY_SUPERADMIN = Object.freeze({
     id: 1,
     username: "ashedavid2005@gmail.com",
@@ -21,8 +23,18 @@
 
   let remoteHydrationStarted = false;
   let remoteWriteTimer = null;
+  let remoteHydrationPromise = null;
 
   const toDate = () => new Date().toISOString();
+  const toDateFromMs = (value) => new Date(value).toISOString();
+  const toMs = (value) => {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const addMinutes = (value, minutes) => {
+    const startMs = toMs(value) || Date.now();
+    return toDateFromMs(startMs + minutes * 60 * 1000);
+  };
   const toShortDate = (iso) => {
     if (!iso) {
       return "Never";
@@ -71,6 +83,98 @@
     department: "General Department",
     level: "General"
   });
+
+  const deriveHallUsageState = (hall) => {
+    const status = hall.status || "available";
+    const usage = hall.usage || null;
+    const startedAt = usage ? usage.startedAt || usage.updatedAt || null : null;
+    const expectedEndAt = usage ? usage.expectedEndAt || null : null;
+    const nowMs = Date.now();
+    const endMs = expectedEndAt ? toMs(expectedEndAt) : null;
+    const graceMs = SESSION_OVERDUE_GRACE_MINUTES * 60 * 1000;
+
+    if (status !== "occupied" || !usage) {
+      return {
+        effectiveStatus: status,
+        sessionState: null,
+        startedAt,
+        expectedEndAt,
+        isStale: false,
+        isLocked: false,
+        minutesUntilEnd: null,
+        minutesOverdue: null
+      };
+    }
+
+    if (!endMs) {
+      return {
+        effectiveStatus: "unconfirmed",
+        sessionState: "unconfirmed",
+        startedAt,
+        expectedEndAt,
+        isStale: true,
+        isLocked: false,
+        minutesUntilEnd: null,
+        minutesOverdue: null
+      };
+    }
+
+    if (nowMs <= endMs) {
+      return {
+        effectiveStatus: "occupied",
+        sessionState: "active",
+        startedAt,
+        expectedEndAt,
+        isStale: false,
+        isLocked: true,
+        minutesUntilEnd: Math.max(0, Math.ceil((endMs - nowMs) / 60000)),
+        minutesOverdue: 0
+      };
+    }
+
+    if (nowMs <= endMs + graceMs) {
+      return {
+        effectiveStatus: "overdue",
+        sessionState: "overdue",
+        startedAt,
+        expectedEndAt,
+        isStale: true,
+        isLocked: true,
+        minutesUntilEnd: 0,
+        minutesOverdue: Math.ceil((nowMs - endMs) / 60000)
+      };
+    }
+
+    return {
+      effectiveStatus: "unconfirmed",
+      sessionState: "unconfirmed",
+      startedAt,
+      expectedEndAt,
+      isStale: true,
+      isLocked: false,
+      minutesUntilEnd: 0,
+      minutesOverdue: Math.ceil((nowMs - endMs) / 60000)
+    };
+  };
+
+  const decorateState = (state) => {
+    state.halls = (state.halls || []).map((hall) => {
+      const runtime = deriveHallUsageState(hall);
+      return {
+        ...hall,
+        effectiveStatus: runtime.effectiveStatus,
+        sessionState: runtime.sessionState,
+        sessionStartedAt: runtime.startedAt,
+        sessionExpectedEndAt: runtime.expectedEndAt,
+        sessionIsStale: runtime.isStale,
+        sessionIsLocked: runtime.isLocked,
+        sessionMinutesUntilEnd: runtime.minutesUntilEnd,
+        sessionMinutesOverdue: runtime.minutesOverdue
+      };
+    });
+
+    return state;
+  };
 
   const readState = () => {
     const raw = localStorage.getItem(DB_KEY);
@@ -199,19 +303,22 @@
     }
 
     if (hall.currentClass && !hall.usage) {
-      hall.usage = {
-        course: hall.currentClass.name || hall.currentClass.code || hall.note || "Unspecified Course",
-        lecturer: hall.currentClass.professor || "Unassigned Lecturer",
-        department: "General Department",
-        faculty: hall.faculty,
-        level: "General",
-        coordinator: "system",
-        coordinatorUsername: "system",
-        coordinatorId: null,
-        updatedAt: toDate()
-      };
-      changed = true;
-    }
+        hall.usage = {
+          course: hall.currentClass.name || hall.currentClass.code || hall.note || "Unspecified Course",
+          lecturer: hall.currentClass.professor || "Unassigned Lecturer",
+          department: "General Department",
+          faculty: hall.faculty,
+          level: "General",
+          coordinator: "system",
+          coordinatorUsername: "system",
+          coordinatorId: null,
+          updatedAt: toDate(),
+          startedAt: toDate(),
+          expectedEndAt: addMinutes(toDate(), DEFAULT_SESSION_DURATION_MINUTES),
+          lastConfirmedAt: toDate()
+        };
+        changed = true;
+      }
 
     if (!hall.currentClass && hall.usage && hall.status === "occupied") {
       hall.currentClass = {
@@ -243,6 +350,31 @@
         );
         hall.usage.coordinatorId = match ? match.id : null;
         changed = true;
+      }
+
+      if (!hall.usage.startedAt) {
+        hall.usage.startedAt = hall.usage.updatedAt || toDate();
+        changed = true;
+      }
+
+      if (!hall.usage.expectedEndAt) {
+        hall.usage.expectedEndAt = addMinutes(hall.usage.startedAt, DEFAULT_SESSION_DURATION_MINUTES);
+        changed = true;
+      }
+
+      if (!hall.usage.lastConfirmedAt) {
+        hall.usage.lastConfirmedAt = hall.usage.updatedAt || hall.usage.startedAt;
+        changed = true;
+      }
+
+      if (!hall.usage.durationHours) {
+        const startMs = toMs(hall.usage.startedAt);
+        const endMs = toMs(hall.usage.expectedEndAt);
+        if (startMs && endMs && endMs > startMs) {
+          const diffHours = Math.max(1, Math.min(4, Math.round((endMs - startMs) / 3600000)));
+          hall.usage.durationHours = diffHours;
+          changed = true;
+        }
       }
 
       if (hall.usage.coordinatorUsername && hall.usage.coordinatorUsername !== "system") {
@@ -336,7 +468,7 @@
   const hydrateFromRemote = async () => {
     const client = supabaseClient();
     if (!client) {
-      return;
+      return ensureState();
     }
 
     const { data, error } = await client
@@ -347,18 +479,33 @@
 
     if (error) {
       console.warn("HallMonitor Supabase read failed:", error.message || error);
-      return;
+      return ensureState();
     }
 
     if (data && data.payload && typeof data.payload === "object") {
       const remoteState = data.payload;
       const changed = normalizeState(remoteState);
       writeState(remoteState, { skipRemote: !changed });
-      return;
+      return remoteState;
     }
 
     const local = ensureState();
     await pushRemoteState(local);
+    return local;
+  };
+
+  const refreshFromRemote = () => {
+    if (!supabaseClient()) {
+      return Promise.resolve(ensureState());
+    }
+
+    if (!remoteHydrationPromise) {
+      remoteHydrationPromise = hydrateFromRemote().finally(() => {
+        remoteHydrationPromise = null;
+      });
+    }
+
+    return remoteHydrationPromise;
   };
 
   const startRemoteSync = () => {
@@ -371,10 +518,10 @@
       return;
     }
 
-    void hydrateFromRemote();
+    void refreshFromRemote();
   };
 
-  const getState = () => clone(ensureState());
+  const getState = () => decorateState(clone(ensureState()));
 
   const withState = (mutator) => {
     const state = ensureState();
@@ -466,9 +613,10 @@
 
   const loginAdmin = (username, password) => {
     const state = ensureState();
+    const identity = String(username).trim().toLowerCase();
     const admin = state.admins.find(
       (item) =>
-        item.username.toLowerCase() === String(username).trim().toLowerCase() &&
+        (item.username.toLowerCase() === identity || String(item.email || "").toLowerCase() === identity) &&
         item.password === password
     );
 
@@ -590,7 +738,10 @@
     logoutSuperAdmin,
     clearAdminSession,
     clearSuperSession,
-    startRemoteSync
+    startRemoteSync,
+    refreshFromRemote,
+    deriveHallUsageState,
+    addMinutes
   };
 
   startRemoteSync();
